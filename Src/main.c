@@ -49,13 +49,9 @@ UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart5;
 
 /* USER CODE BEGIN PV */
-uint8_t rx_data[500];
-uint16_t size = 500;
+uint8_t rx_data[700];
+uint16_t size = 700;
 
-uint8_t tx_data[1];
-uint8_t rx_test[8];
-
-int count1 = 0;
 
 char latitude_degrees[2];
 char longitude_degrees[3];
@@ -66,12 +62,22 @@ char longitude_minutes[8];
 char tell_time[9];
 
 float Lat_in_DD,Long_in_DD;
-float Lat_stepper,Long_stepper,Lat_gps,Long_gps;
-float delx,dely;
+
+float Lat_stepper,Long_stepper;
+float Lat_gps1,Long_gps1;
+float Lat_gps2,Long_gps2;
+float Lat_gps3,Long_gps3;
+
+int sense_value_count = 0;
+int sense_new = 0;
+
+float delx_1,dely_1,delx_2,dely_2;
 float utc_time;
 
-double angle_in_degrees,mslope;
+double angle_in_degrees,mslope1,mslope2,diff_m,angle_rad;
 double dist_offset,offset_in_meters;
+
+uint8_t test_tx[8] = {'+','9','0','.','0','0','0','0'};
 
 /* USER CODE END PV */
 
@@ -86,7 +92,16 @@ static void MX_UART5_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  /* Prevent unused argument(s) compilation warning */
+  HAL_UART_Receive(&huart5,rx_data,size,800);
+	printf("%s \n\r",rx_data);
 
+  /* NOTE : This function should not be modified, when the callback is needed,
+            the HAL_UART_RxCpltCallback can be implemented in the user file.
+   */
+}
 /* USER CODE END 0 */
 
 /**
@@ -133,14 +148,14 @@ int main(void)
 		
 		
 		// NEO6-MV2 GPS UART collect data recived at port USART1
-		//HAL_Delay(2000);
+		
+		
 		//printf("%c[1;1f%c[J", 27, 27); // -  to clear printf viewer
 		
 		HAL_UART_Receive_IT(&huart5,rx_data,size);
 		
-//		HAL_UART_Receive(&huart5,rx_data,size,1000);	
-//		printf("%s \n\r",rx_data);
-//		HAL_Delay(1000);
+	//	HAL_UART_Receive(&huart5,rx_data,size,900);	
+	//	printf("%s \n\r",rx_data);
 		
 		//to find index of required data in NMEA format
 		
@@ -210,20 +225,60 @@ int main(void)
 		
 		//DISTANCE CALCULATION
 		
-		//stepper cords - 1st value
-		while(count1<1){
-			Lat_stepper = Lat_in_DD;
-			Long_stepper = Long_in_DD;
-			count1++;
+		//stepper cords - 1st button value
+		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_0)){
+			
+			sense_value_count++;
+			
+			if(sense_value_count == 1){
+				Lat_stepper = Lat_in_DD;
+				Long_stepper = Long_in_DD;
+			}else if(sense_value_count == 2){
+				Lat_gps1 = Lat_in_DD;
+				Long_gps1 = Long_in_DD;
+			}
 		}
 		//gps cords
-		Lat_gps = Lat_in_DD;
-		Long_gps = Long_in_DD;
+		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1)){
+			sense_new++;
+			if(sense_new == 1){
+				Lat_gps2 = Lat_in_DD;
+				Long_gps2 = Long_in_DD;
+			}else if(sense_new >= 2){
+				
+				//old line
+				Lat_gps1 = Lat_gps2;
+				Long_gps1 = Long_gps2;
+				//new line
+				Lat_gps2 = Lat_in_DD;
+				Long_gps2 = Long_in_DD;
+				
+				
+			}
+			
+		}
 		
+		//angle calc
+		dely_1 = Lat_gps1 - Lat_stepper;
+		delx_1 = Long_gps1 - Long_stepper;
+		mslope1 = dely_1 / delx_1;
+		
+		dely_2 = Lat_gps2 - Lat_stepper;
+		delx_2 = Long_gps2 - Long_stepper;
+		mslope2 = dely_2 / delx_2;
+		
+		diff_m = (mslope1 - mslope2) / (1 + (mslope1 * mslope2));
+		angle_rad = atan(diff_m);
+		angle_in_degrees = (atan(angle_rad))*(180/PI);
+		
+		
+		
+		
+		/*
 		//To find angle
 		delx = Long_stepper - Long_gps; // x1 - x2 
 		dely = Lat_stepper - Lat_gps; // y1 - y2
-		mslope = dely - delx; 
+		mslope = dely / delx; 
 		
 		angle_in_degrees = (atan(mslope))*(180/PI);
 		
@@ -235,8 +290,14 @@ int main(void)
 		
 		//To find dist moved (+noise)
 		dist_offset = sqrt((delx*delx)+(dely*dely));
-		offset_in_meters = dist_offset*111320.00; // 1.0 in DD = 111.320 KM
-
+		offset_in_meters = dist_offset*111320.00; // 1.0 in DD = 111.320 KM 
+		*/
+		
+		
+		//UART-4 FOR BLUETOOTH
+		HAL_UART_Transmit(&huart4,test_tx,8,500);
+		
+		
   }
   /* USER CODE END 3 */
 }
@@ -369,15 +430,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-  /* Prevent unused argument(s) compilation warning */
-  HAL_UART_Receive(&huart5,rx_data,size,800);
-	printf("%s \n\r",rx_data);
-  /* NOTE : This function should not be modified, when the callback is needed,
-            the HAL_UART_RxCpltCallback can be implemented in the user file.
-   */
-} 
+
 
 /* USER CODE END 4 */
 
