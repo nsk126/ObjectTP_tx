@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <stdbool.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -77,7 +78,14 @@ float utc_time;
 double angle_in_degrees,mslope1,mslope2,diff_m,angle_rad;
 double dist_offset,offset_in_meters;
 
-uint8_t test_tx[8] = {'+','9','0','.','0','0','0','0'};
+uint8_t test_tx[8];
+
+double test1 = 63.114;
+char buffer[10];
+double ip_float;
+uint8_t *array;
+
+int x;
 
 /* USER CODE END PV */
 
@@ -95,12 +103,11 @@ static void MX_UART5_Init(void);
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
   /* Prevent unused argument(s) compilation warning */
-  HAL_UART_Receive(&huart5,rx_data,size,800);
+  HAL_UART_Receive(&huart5,rx_data,sizeof rx_data,800);
 	printf("%s \n\r",rx_data);
-
-  /* NOTE : This function should not be modified, when the callback is needed,
-            the HAL_UART_RxCpltCallback can be implemented in the user file.
-   */
+}
+void float_to_char(){
+	int ret = snprintf(buffer, sizeof buffer, "%f", angle_in_degrees);
 }
 /* USER CODE END 0 */
 
@@ -145,6 +152,18 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_0)){
+			
+			char rest[] = {'B','U','T','O','N','1',' ','\n'};
+			HAL_UART_Transmit(&huart4,rest,8,500);
+		}
+		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1)){
+			
+			char rest[] = {'B','U','T','O','N','2',' ','\n'};
+			HAL_UART_Transmit(&huart4,rest,8,500);
+		}
+		
+		
 		
 		
 		// NEO6-MV2 GPS UART collect data recived at port USART1
@@ -152,7 +171,7 @@ int main(void)
 		
 		//printf("%c[1;1f%c[J", 27, 27); // -  to clear printf viewer
 		
-		HAL_UART_Receive_IT(&huart5,rx_data,size);
+	/*	HAL_UART_Receive_IT(&huart5,rx_data,size);
 		
 	//	HAL_UART_Receive(&huart5,rx_data,size,900);	
 	//	printf("%s \n\r",rx_data);
@@ -221,58 +240,65 @@ int main(void)
 		Long_in_DD = atof(longitude_degrees)+(atof(longitude_minutes)/60);
 		
 		utc_time = atof(tell_time);
-		HAL_Delay(100);
+		HAL_Delay(100); */
 		
 		//DISTANCE CALCULATION
 		
+		
+		
 		//stepper cords - 1st button value
-		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_0)){
+	/*	if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_0)){
 			
 			sense_value_count++;
 			
 			if(sense_value_count == 1){
-				Lat_stepper = Lat_in_DD;
-				Long_stepper = Long_in_DD;
+				Lat_stepper = 1.005;//Lat_in_DD;
+				Long_stepper = 1.006;//Long_in_DD;
 			}else if(sense_value_count == 2){
-				Lat_gps1 = Lat_in_DD;
-				Long_gps1 = Long_in_DD;
+				Lat_gps1 = 2.005;//Lat_in_DD;
+				Long_gps1 = 2.006;//Long_in_DD;
+				sense_value_count = 0;
 			}
 		}
-		//gps cords
+		//gps cords - 2nd button
 		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1)){
 			sense_new++;
 			if(sense_new == 1){
-				Lat_gps2 = Lat_in_DD;
-				Long_gps2 = Long_in_DD;
+				Lat_gps2 = 1.007;//Lat_in_DD;
+				Long_gps2 = 1.008;//Long_in_DD;
 			}else if(sense_new >= 2){
 				
 				//old line
 				Lat_gps1 = Lat_gps2;
 				Long_gps1 = Long_gps2;
 				//new line
-				Lat_gps2 = Lat_in_DD;
-				Long_gps2 = Long_in_DD;
-				
+				Lat_gps2 = 8.004;//Lat_in_DD;
+				Long_gps2 = 8.005;//Long_in_DD;	
 				
 			}
 			
-		}
-		
-		//angle calc
-		dely_1 = Lat_gps1 - Lat_stepper;
-		delx_1 = Long_gps1 - Long_stepper;
-		mslope1 = dely_1 / delx_1;
-		
-		dely_2 = Lat_gps2 - Lat_stepper;
-		delx_2 = Long_gps2 - Long_stepper;
-		mslope2 = dely_2 / delx_2;
-		
-		diff_m = (mslope1 - mslope2) / (1 + (mslope1 * mslope2));
-		angle_rad = atan(diff_m);
-		angle_in_degrees = (atan(angle_rad))*(180/PI);
 		
 		
-		
+			//angle calc
+			dely_1 = Lat_gps1 - Lat_stepper;
+			delx_1 = Long_gps1 - Long_stepper;
+			mslope1 = dely_1 / delx_1;
+			
+			dely_2 = Lat_gps2 - Lat_stepper;
+			delx_2 = Long_gps2 - Long_stepper;
+			mslope2 = dely_2 / delx_2;
+			
+			diff_m = (mslope1 - mslope2) / (1 + (mslope1 * mslope2));
+			angle_rad = atan(diff_m);
+			angle_in_degrees = (atan(angle_rad))*(180/PI);
+			
+			//float to char*
+			//char* ftoa(double angle_in_degrees,char* test_tx);
+			
+			//UART-4 FOR BLUETOOTH
+		//	HAL_UART_Transmit(&huart4,test_tx,8,500);
+		} 
+		HAL_Delay(500); */
 		
 		/*
 		//To find angle
@@ -294,8 +320,7 @@ int main(void)
 		*/
 		
 		
-		//UART-4 FOR BLUETOOTH
-		HAL_UART_Transmit(&huart4,test_tx,8,500);
+		
 		
 		
   }
@@ -421,17 +446,68 @@ static void MX_UART5_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOF_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
+
+  /*Configure GPIO pins : PA0 PA1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 }
 
 /* USER CODE BEGIN 4 */
+/*void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  if(GPIO_Pin == Step_Pin){		
+		Lat_stepper = 1.005;//Lat_in_DD;
+		Long_stepper = 1.006;//Long_in_DD;	
+	}else if(GPIO_Pin == P1_Pin){
+		Lat_gps1 = 2.005;//Lat_in_DD;
+		Long_gps1 = 2.006;//Long_in_DD;
+	}else	if(GPIO_Pin == P2_Pin){
+		Lat_gps2 = 8.004;//Lat_in_DD;
+		Long_gps2 = 8.005;//Long_in_DD;	
+	}else	if(GPIO_Pin == P3_Pin){
+		//old line
+		Lat_gps1 = Lat_gps2;
+		Long_gps1 = Long_gps2;
+		//new line
+		Lat_gps2 = 9.004;//Lat_in_DD;
+		Long_gps2 = 9.005;//Long_in_DD;	
+		
+		//angle calc
+		dely_1 = Lat_gps1 - Lat_stepper;
+		delx_1 = Long_gps1 - Long_stepper;
+		mslope1 = dely_1 / delx_1;
+		
+		dely_2 = Lat_gps2 - Lat_stepper;
+		delx_2 = Long_gps2 - Long_stepper;
+		mslope2 = dely_2 / delx_2;
+		
+		diff_m = (mslope1 - mslope2) / (1 + (mslope1 * mslope2));
+		angle_rad = atan(diff_m);
+		angle_in_degrees = (atan(angle_rad))*(180/PI);
+		
+		//float to char*
+		float_to_char();
+		
+		//transmit
+		HAL_UART_Transmit(&huart4,buffer,sizeof buffer,500);
+	}
+	if(GPIO_Pin == P3_Pin){
+		char rest[] = {'S','I','R',' ','S','K','I','P'};
+		HAL_UART_Transmit(&huart4,rest,8,500);
+	}
+		
 
 
+*/
 /* USER CODE END 4 */
 
 /**

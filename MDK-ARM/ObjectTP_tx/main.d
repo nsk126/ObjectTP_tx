@@ -31,3 +31,4 @@ objecttp_tx\main.o: ../Drivers/STM32F3xx_HAL_Driver/Inc/stm32f3xx_hal_uart.h
 objecttp_tx\main.o: ../Drivers/STM32F3xx_HAL_Driver/Inc/stm32f3xx_hal_uart_ex.h
 objecttp_tx\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
 objecttp_tx\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\math.h
+objecttp_tx\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
