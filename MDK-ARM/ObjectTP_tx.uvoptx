@@ -178,27 +178,17 @@
         <Ww>
           <count>5</count>
           <WinNumber>1</WinNumber>
-          <ItemText>sense_value_count</ItemText>
+          <ItemText>test_tx</ItemText>
         </Ww>
         <Ww>
           <count>6</count>
           <WinNumber>1</WinNumber>
-          <ItemText>sense_new</ItemText>
+          <ItemText>buffer</ItemText>
         </Ww>
         <Ww>
           <count>7</count>
           <WinNumber>1</WinNumber>
-          <ItemText>test_tx</ItemText>
-        </Ww>
-        <Ww>
-          <count>8</count>
-          <WinNumber>1</WinNumber>
-          <ItemText>buffer</ItemText>
-        </Ww>
-        <Ww>
-          <count>9</count>
-          <WinNumber>1</WinNumber>
-          <ItemText>x</ItemText>
+          <ItemText>angle_in_degrees</ItemText>
         </Ww>
       </WatchWindow1>
       <Tracepoint>
