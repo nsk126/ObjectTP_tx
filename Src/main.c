@@ -59,7 +59,10 @@ char latitude_minutes[8];
 char longitude_minutes[8];
 char tell_time[9];
 
-float Lat_in_DD,Long_in_DD,utc_time;;
+float Lat_in_DD,Long_in_DD,utc_time;
+
+int x;
+float  y;
 
 float Lat0,Long0;
 float Lat1,Long1;
@@ -79,8 +82,7 @@ char buffer[10];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
-void
-SystemClock_Config(void);
+void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_UART4_Init(void);
 static void MX_UART5_Init(void);
@@ -253,7 +255,7 @@ int main(void)
 
       a20 = pow(sin(dy20 / 2), 2) + cos(lat0) * cos(lat2) * pow(sin(dx20 / 2), 2);
       c20 = 2 * atan2(sqrt(a20), sqrt(1 - a20));
-      d20 = R * c20;
+      d20 = R * c20; // distance between new line and stepper;
 
       dx21 = long2 - long1;
       dy21 = lat2 - lat1;
