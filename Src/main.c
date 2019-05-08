@@ -37,6 +37,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define PI 3.14159265359
+#define R 6371008.8
 
 /* USER CODE END PD */
 
@@ -51,46 +52,35 @@ UART_HandleTypeDef huart5;
 
 /* USER CODE BEGIN PV */
 uint8_t rx_data[700];
-uint16_t size = 700;
-
 
 char latitude_degrees[2];
 char longitude_degrees[3];
-
 char latitude_minutes[8];
 char longitude_minutes[8];
-
 char tell_time[9];
 
-float Lat_in_DD,Long_in_DD;
+float Lat_in_DD,Long_in_DD,utc_time;;
 
-float Lat_stepper,Long_stepper;
-float Lat_gps1,Long_gps1;
-float Lat_gps2,Long_gps2;
-float Lat_gps3,Long_gps3;
+float Lat0,Long0;
+float Lat1,Long1;
+float Lat2,Long2;
 
-int sense_value_count = 0;
-int sense_new = 0;
+double lat0,lat1,lat2;
+double long0,long1,long2;
+double dx10,dy10,a10,c10,d10;
+double dx20,dy20,a20,c20,d20;
+double dx21,dy21,a21,c21,d21;
+double Ctheta,angle;
+double ax,ay,bx,by,cz;
 
-float delx_1,dely_1,delx_2,dely_2;
-float utc_time;
-
-double angle_in_degrees,mslope1,mslope2,diff_m,angle_rad;
-double dist_offset,offset_in_meters;
-
-uint8_t test_tx[8];
-
-double test1 = 63.114;
+double final_angle;
 char buffer[10];
-double ip_float;
-uint8_t *array;
-
-bool u,x,y,z;
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
-void SystemClock_Config(void);
+void
+SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_UART4_Init(void);
 static void MX_UART5_Init(void);
@@ -105,7 +95,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 	printf("%s \n\r",rx_data);
 }
 void float_to_char(){
-	int ret = snprintf(buffer, sizeof buffer, "%f", angle_in_degrees);
+	int ret = snprintf(buffer, sizeof buffer, "%f", final_angle);
 }
 /* USER CODE END 0 */
 
@@ -150,9 +140,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		// NEO6-MV2 GPS UART collect data recived at port USART1
-		//printf("%c[1;1f%c[J", 27, 27); // -  to clear printf viewer
-		HAL_UART_Receive_IT(&huart5,rx_data,size);
+		// NEO6-MV2 GPS UART collect data recived at port UART5
+		HAL_UART_Receive_IT(&huart5,rx_data,sizeof rx_data);
 		//to find index of required data in NMEA format
 		for(int i=0;i<1200;i++){
 			if (rx_data[i] == '$'){
@@ -210,100 +199,102 @@ int main(void)
 				}
 			}
 		}		
-		Lat_in_DD = atof(latitude_degrees)+(atof(latitude_minutes)/60);
+		
+    // Char array to floats
+		x = 17;//atof(latitude_degrees);
+		y = atof(latitude_minutes);
+		Lat_in_DD = x+(y/60);
+		//Lat_in_DD = atof(latitude_degrees)+(atof(latitude_minutes)/60);
 		Long_in_DD = atof(longitude_degrees)+(atof(longitude_minutes)/60);
 		utc_time = atof(tell_time);
+
+    // Buttons & data processing
 		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_0) == GPIO_PIN_SET){
-			Lat_stepper = Lat_in_DD;
-			Long_stepper = Long_in_DD;
+      // Button 1 to set location of stepper
+			Lat0 = Lat_in_DD;
+			Long0 = Long_in_DD;
 		}
 		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1) == GPIO_PIN_SET){
-			Lat_gps1 = Lat_in_DD;
-			Long_gps1 = Long_in_DD;
+      // Button 2 to set location of initial line
+			Lat1 = Lat_in_DD;
+			Long1 = Long_in_DD;
 		} 
 		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_4) == GPIO_PIN_SET){
-			Lat_gps2 = Lat_in_DD;
-			Long_gps2 = Long_in_DD;
+      // Button 3 to set location of second line 
+			Lat2 = Lat_in_DD;
+			Long2 = Long_in_DD;
 		}
 		if(HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_0) == GPIO_PIN_SET){
+      // Button 4 to set new line/s and trasnmit data
 			//old line
-			Lat_gps1 = Lat_gps2;
-			Long_gps1 = Long_gps2;
+			Lat1 = Lat2;
+			Long1 = Long2;
 			//new line
-			Lat_gps2 = Lat_in_DD;
-			Long_gps2 = Long_in_DD;
-			//line1
-			dely_1 = Lat_gps1 - Lat_stepper;
-			delx_1 = Long_gps1 - Long_stepper;
-			mslope1 = dely_1 / delx_1;
-			//line2
-			dely_2 = Lat_gps2 - Lat_stepper;
-			delx_2 = Long_gps2 - Long_stepper;
-			mslope2 = dely_2 / delx_2;
-			//angle calc
-			diff_m = (mslope1 - mslope2) / (1 + (mslope1 * mslope2));
+			Lat2 = Lat_in_DD;
+			Long2 = Long_in_DD;
+
+      /*a = sin²(Δφ/2) + cos φ1 ⋅ cos φ2 ⋅ sin²(Δλ/2)
+      c = 2 ⋅ atan2( √a, √(1−a) )
+      d = R ⋅ c*/
+
+      lat0 = Lat0 * (PI / 180); long0 = Long0 * (PI / 180);
+      lat1 = Lat1 * (PI / 180); long1 = Long1 * (PI / 180);
+      lat2 = Lat2 * (PI / 180); long2 = Long2 * (PI / 180);
+      
+      dx10 = long1 - long0;
+      dy10 = lat1 - lat0;
+
+      a10 = pow(sin(dy10 / 2), 2) + cos(lat0) * cos(lat1) * pow(sin(dx10 / 2), 2);
+      c10 = 2 * atan2(sqrt(a10), sqrt(1 - a10));
+      d10 = R * c10;      
+
+      dx20 = long2 - long0;
+      dy20 = lat2 - lat0;
+
+      a20 = pow(sin(dy20 / 2), 2) + cos(lat0) * cos(lat2) * pow(sin(dx20 / 2), 2);
+      c20 = 2 * atan2(sqrt(a20), sqrt(1 - a20));
+      d20 = R * c20;
+
+      dx21 = long2 - long1;
+      dy21 = lat2 - lat1;
+
+      a21 = pow(sin(dy21 / 2), 2) + cos(lat1) * cos(lat2) * pow(sin(dx21 / 2), 2);
+      c21 = 2 * atan2(sqrt(a21), sqrt(1 - a21));
+      d21 = R * c21;
+      //d21 = a, d10 = b, d20 = c
+      Ctheta = (pow(d10, 2) + pow(d20, 2) - pow(d21, 2)) / (2 * d10 * d20);
+      angle = acos(Ctheta);
+      angle = angle * (180 / PI);
+      //printf("angle = %f\n", angle);
+
+      ax = Long1 - Long0;
+      ay = Lat1 - Lat0;
+      bx = Long2 - Long0;
+      by = Lat2 - Lat0;
+      cz = (ax * by) - (ay * bx);
+      //printf("%.17g \n", cz); 17d 9f
+
+      if (cz < 0)
+      {
+        final_angle = (-1)*angle;
+      }
+      else if (cz > 0)
+      {
+        final_angle = angle;
+      }
+			
+      /*diff_m = (mslope2 - mslope1) / (1 + (mslope1 * mslope2));
 			angle_rad = atan(diff_m);
-			angle_in_degrees = 180;//(atan(angle_rad))*(180/PI);
+			final_angle = (atan(angle_rad))*(180/PI);*/
 			//float to char*
-			//char* ftoa(double angle_in_degrees,char* test_tx);
+			//char* ftoa(double final_angle,char* test_tx);
 			float_to_char();			
 			//UART-4 FOR BLUETOOTH
 			HAL_UART_Transmit(&huart4,buffer,sizeof buffer,100);
+
 		}
 		HAL_Delay(400);		
-		//DISTANCE CALCULATION	
-		//stepper cords - 1st button value
-	/*	if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_0)){		
-			sense_value_count++;			
-			if(sense_value_count == 1){
-				Lat_stepper = 1.005;//Lat_in_DD;
-				Long_stepper = 1.006;//Long_in_DD;
-			}else if(sense_value_count == 2){
-				Lat_gps1 = 2.005;//Lat_in_DD;
-				Long_gps1 = 2.006;//Long_in_DD;
-				sense_value_count = 0;
-			}
-		}
-		//gps cords - 2nd button
-		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1)){
-			sense_new++;
-			if(sense_new == 1){
-				Lat_gps2 = 1.007;//Lat_in_DD;
-				Long_gps2 = 1.008;//Long_in_DD;
-			}else if(sense_new >= 2){
-				//old line
-				Lat_gps1 = Lat_gps2;
-				Long_gps1 = Long_gps2;
-				//new line
-				Lat_gps2 = 8.004;//Lat_in_DD;
-				Long_gps2 = 8.005;//Long_in_DD;	
-			}
-			//angle calc
-			dely_1 = Lat_gps1 - Lat_stepper;
-			delx_1 = Long_gps1 - Long_stepper;
-			mslope1 = dely_1 / delx_1;
-			dely_2 = Lat_gps2 - Lat_stepper;
-			delx_2 = Long_gps2 - Long_stepper;
-			mslope2 = dely_2 / delx_2;
-			diff_m = (mslope1 - mslope2) / (1 + (mslope1 * mslope2));
-			angle_rad = atan(diff_m);
-			angle_in_degrees = (atan(angle_rad))*(180/PI);
-			//float to char*
-			char* ftoa(double angle_in_degrees,char* test_tx);
-			//UART-4 FOR BLUETOOTH
-			HAL_UART_Transmit(&huart4,test_tx,8,500);
-		} 
-		HAL_Delay(500); */
-		/*
-		//To find angle
-		delx = Long_stepper - Long_gps; // x1 - x2 
-		dely = Lat_stepper - Lat_gps; // y1 - y2
-		mslope = dely / delx; 
-		angle_in_degrees = (atan(mslope))*(180/PI);
-		//To find dist moved (+noise)
-		dist_offset = sqrt((delx*delx)+(dely*dely));
-		offset_in_meters = dist_offset*111320.00; // 1.0 in DD = 111.320 KM 
-		*/
+		
   }
   /* USER CODE END 3 */
 }
@@ -457,52 +448,8 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-/*void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-  if(GPIO_Pin == Step_Pin){		
-		Lat_stepper = 1.005;//Lat_in_DD;
-		Long_stepper = 1.006;//Long_in_DD;	
-	}else if(GPIO_Pin == P1_Pin){
-		Lat_gps1 = 2.005;//Lat_in_DD;
-		Long_gps1 = 2.006;//Long_in_DD;
-	}else	if(GPIO_Pin == P2_Pin){
-		Lat_gps2 = 8.004;//Lat_in_DD;
-		Long_gps2 = 8.005;//Long_in_DD;	
-	}else	if(GPIO_Pin == P3_Pin){
-		//old line
-		Lat_gps1 = Lat_gps2;
-		Long_gps1 = Long_gps2;
-		//new line
-		Lat_gps2 = 9.004;//Lat_in_DD;
-		Long_gps2 = 9.005;//Long_in_DD;	
-		
-		//angle calc
-		dely_1 = Lat_gps1 - Lat_stepper;
-		delx_1 = Long_gps1 - Long_stepper;
-		mslope1 = dely_1 / delx_1;
-		
-		dely_2 = Lat_gps2 - Lat_stepper;
-		delx_2 = Long_gps2 - Long_stepper;
-		mslope2 = dely_2 / delx_2;
-		
-		diff_m = (mslope1 - mslope2) / (1 + (mslope1 * mslope2));
-		angle_rad = atan(diff_m);
-		angle_in_degrees = (atan(angle_rad))*(180/PI);
-		
-		//float to char*
-		float_to_char();
-		
-		//transmit
-		HAL_UART_Transmit(&huart4,buffer,sizeof buffer,500);
-	}
-	if(GPIO_Pin == P3_Pin){
-		char rest[] = {'S','I','R',' ','S','K','I','P'};
-		HAL_UART_Transmit(&huart4,rest,8,500);
-	}
-		
 
 
-*/
 /* USER CODE END 4 */
 
 /**
